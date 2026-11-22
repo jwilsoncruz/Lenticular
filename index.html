@@ -44,6 +44,21 @@ small{color:var(--mut)}
 </div>
 
 <div class="ctl">
+  <h2 style="font-size:1.15rem;margin:0 0 4px">Encuadre</h2>
+  <small>El recuadro de arriba es exactamente lo que se verá y se imprimirá. Su proporción sigue el ancho × alto de “Imprimir sin lente”.</small>
+  <div class="btns" style="margin:10px 0"><button id="sa">Imagen A</button><button id="sb" class="sec">Imagen B</button></div>
+  <label><span>Zoom</span><span></span></label>
+  <input type="range" id="ez" min="100" max="400" value="100">
+  <label style="margin-top:8px"><span>Posición horizontal</span><span></span></label>
+  <input type="range" id="ex" min="-100" max="100" value="0">
+  <label style="margin-top:8px"><span>Posición vertical</span><span></span></label>
+  <input type="range" id="ey" min="-100" max="100" value="0">
+  <div class="check"><input type="checkbox" id="mv"><span>Mover arrastrando sobre la imagen (muestra solo la imagen elegida)</span></div>
+  <div class="check"><input type="checkbox" id="lk"><span>Aplicar el mismo encuadre a A y B</span></div>
+  <div class="btns" style="margin-top:12px"><button id="ctr" class="sec">Centrar</button><button id="rst" class="sec">Restablecer</button></div>
+</div>
+
+<div class="ctl">
   <label><span>Ángulo de visión</span><span id="tv">50%</span></label>
   <input type="range" id="ang" min="0" max="100" value="50">
   <div class="check"><input type="checkbox" id="auto" checked><span>Mover con el mouse / giroscopio</span></div>
@@ -67,12 +82,13 @@ small{color:var(--mut)}
    <label>Alto (cm)<input type="number" id="ph" value="50" min="5"></label>
    <label>Ancho de tira (cm)<input type="number" id="ps" value="2" min="0.5" step="0.5"></label>
    <label>Resolución (DPI)<input type="number" id="pd" value="100" min="30" max="300"></label>
+   <label>Sangrado (mm, solo PDF banner)<input type="number" id="pb" value="5" min="0" max="50"></label>
   </div>
   <label class="pl">Salida
    <select id="pm"><option value="banner">Gigantografía / banner (una sola imagen)</option><option value="hojas">Hojas A4 para recortar y pegar</option></select>
   </label>
   <div class="check"><input type="checkbox" id="pg" checked><span>Marcas de doblez (continua = montaña, punteada = valle)</span></div>
-  <div class="btns" style="margin-top:12px"><button id="gen">Generar</button></div>
+  <div class="btns" style="margin-top:12px"><button id="gen">Generar</button><button id="pdf">PDF para imprenta</button></div>
   <p id="pmsg" style="color:var(--acc);margin:8px 0 0"></p>
   <div id="out"></div>
   <details style="margin-top:12px"><summary>Cómo armarlo</summary>
@@ -96,13 +112,14 @@ var t=0.5;var src=[A,B];
 function cover(c,img){var x=c.getContext('2d');var r=Math.max(W/img.width,H/img.height),w=img.width*r,h=img.height*r;x.drawImage(img,(W-w)/2,(H-h)/2,w,h);}
 function sample(c,c1,c2,label){var x=c.getContext('2d');var g=x.createLinearGradient(0,0,W,H);g.addColorStop(0,c1);g.addColorStop(1,c2);x.fillStyle=g;x.fillRect(0,0,W,H);
 x.fillStyle='rgba(255,255,255,.95)';x.font='bold 120px system-ui,sans-serif';x.textAlign='center';x.textBaseline='middle';x.fillText(label,W/2,H/2);}
-sample(A,'#f97316','#be123c','IMAGEN A');sample(B,'#0ea5e9','#4338ca','IMAGEN B');
-function load(inp,c){inp.addEventListener('change',function(){var f=inp.files[0];if(!f)return;var img=new Image();img.onload=function(){c.getContext('2d').clearRect(0,0,W,H);cover(c,img);src[c===A?0:1]=img;draw();};img.src=URL.createObjectURL(f);});}
+sample(A,'#f97316','#be123c','IMAGEN A');sample(B,'#0ea5e9','#4338ca','IMAGEN B');src=[cl(A),cl(B)];
+function load(inp,c){inp.addEventListener('change',function(){var f=inp.files[0];if(!f)return;var img=new Image();img.onload=function(){var k=c===A?0:1;src[k]=img;tf[k]={z:1,x:0,y:0};upd();};img.src=URL.createObjectURL(f);});}
 load(document.getElementById('fa'),A);load(document.getElementById('fb'),B);
 function sw(){return +document.getElementById('sw').value;}
 function interlaced(){var o=document.createElement('canvas');o.width=W;o.height=H;var x=o.getContext('2d'),s=sw();
 for(var i=0;i*s<W;i++){x.drawImage(i%2?B:A,i*s,0,s,H,i*s,0,s,H);}return o;}
 function draw(){
+ if(mvOn()){ctx.globalAlpha=1;ctx.drawImage(sel?B:A,0,0);return;}
  if(document.getElementById('il').checked){ctx.drawImage(interlaced(),0,0);return;}
  ctx.globalAlpha=1;ctx.drawImage(A,0,0);ctx.globalAlpha=t;ctx.drawImage(B,0,0);ctx.globalAlpha=1;
  // efecto de tiras sutil
@@ -110,7 +127,7 @@ function draw(){
 }
 function setT(v){t=Math.max(0,Math.min(1,v));document.getElementById('ang').value=Math.round(t*100);document.getElementById('tv').textContent=Math.round(t*100)+'%';draw();}
 var auto=document.getElementById('auto');
-cv.addEventListener('pointermove',function(e){if(!auto.checked)return;var r=cv.getBoundingClientRect();setT((e.clientX-r.left)/r.width);});
+cv.addEventListener('pointermove',function(e){if(mvOn()||!auto.checked)return;var r=cv.getBoundingClientRect();setT((e.clientX-r.left)/r.width);});
 document.getElementById('ang').addEventListener('input',function(e){setT(e.target.value/100);});
 document.getElementById('il').addEventListener('change',draw);
 document.getElementById('sw').addEventListener('input',function(e){document.getElementById('tw').textContent=e.target.value;draw();});
@@ -127,8 +144,8 @@ function pmsg(s){document.getElementById('pmsg').textContent=s||'';}
 function saveBlob(b,name){pmsg('');var p=window.claude&&window.claude.use?window.claude.use('downloads'):Promise.resolve(null);p.then(function(d){if(!d){pmsg('La descarga no está disponible en esta vista.');return;}return d.save({filename:name,data:b});}).catch(function(e){if(!e||e.code!=='declined')pmsg('No se pudo guardar el archivo.');});}
 function saveCanvas(c,name){c.toBlob(function(b){saveBlob(b,name);},'image/png');}
 function px(cm,d){return Math.round(cm/2.54*d);}
-function fit(img,w,h){var o=document.createElement('canvas');o.width=w;o.height=h;var x=o.getContext('2d'),r=Math.max(w/img.width,h/img.height),dw=img.width*r,dh=img.height*r;x.drawImage(img,(w-dw)/2,(h-dh)/2,dw,dh);return o;}
-function buildPrint(wc,hc,sc,d,g){var w=px(wc,d),h=px(hc,d),sp=Math.max(1,px(sc,d)),a=fit(src[0],w,h),b=fit(src[1],w,h),o=document.createElement('canvas');o.width=w;o.height=h;var x=o.getContext('2d');
+function fit(img,w,h,k){var o=document.createElement('canvas');o.width=w;o.height=h;paint(o.getContext('2d'),img,w,h,tf[k]);return o;}
+function buildPrint(wc,hc,sc,d,g){var w=px(wc,d),h=px(hc,d),sp=Math.max(1,px(sc,d)),a=fit(src[0],w,h,0),b=fit(src[1],w,h,1),o=document.createElement('canvas');o.width=w;o.height=h;var x=o.getContext('2d');
  for(var i=0;i*sp<w;i++){x.drawImage(i%2?b:a,i*sp,0,sp,h,i*sp,0,sp,h);}
  if(g){var tk=px(0.8,d);x.lineWidth=Math.max(2,Math.round(d/40));for(var j=1;j*sp<w;j++){var X=j*sp;x.strokeStyle=j%2?'#e11d48':'#2563eb';x.setLineDash(j%2?[]:[10,8]);x.beginPath();x.moveTo(X,0);x.lineTo(X,tk);x.moveTo(X,h-tk);x.lineTo(X,h);x.stroke();}x.setLineDash([]);}
  return {c:o,sp:sp};}
@@ -151,7 +168,62 @@ document.getElementById('gen').addEventListener('click',function(){
   for(var r=0;r<rows;r++)for(var c=0;c<cols;c++)out.appendChild(mkBtn('Hoja F'+(r+1)+' C'+(c+1),mk(r,c)));
  }
 });
-draw();
+var tf=[{z:1,x:0,y:0},{z:1,x:0,y:0}],sel=0,drag=null;
+function q(i){return document.getElementById(i);}
+function cl(c){var o=document.createElement('canvas');o.width=c.width;o.height=c.height;o.getContext('2d').drawImage(c,0,0);return o;}
+function lim(k){var im=src[k],r=Math.max(W/im.width,H/im.height)*tf[k].z;return [Math.max(0,(im.width*r-W)/(2*W)),Math.max(0,(im.height*r-H)/(2*H))];}
+function paint(x,im,w,h,t){var r=Math.max(w/im.width,h/im.height)*t.z,dw=im.width*r,dh=im.height*r;x.drawImage(im,(w-dw)/2+t.x*w,(h-dh)/2+t.y*h,dw,dh);}
+function renderAB(){[A,B].forEach(function(c,k){var l=lim(k),t=tf[k];t.x=Math.max(-l[0],Math.min(l[0],t.x));t.y=Math.max(-l[1],Math.min(l[1],t.y));var x=c.getContext('2d');x.clearRect(0,0,c.width,c.height);paint(x,src[k],c.width,c.height,t);});}
+function syncUI(){var t=tf[sel];q('ez').value=Math.round(t.z*100);q('ex').value=Math.round(t.x*100);q('ey').value=Math.round(t.y*100);}
+function upd(){renderAB();syncUI();draw();}
+function cur(){return q('lk').checked?[0,1]:[sel];}
+function mvOn(){return q('mv').checked;}
+function setSel(k){sel=k;q('sa').className=k?'sec':'';q('sb').className=k?'':'sec';syncUI();draw();}
+q('sa').addEventListener('click',function(){setSel(0);});
+q('sb').addEventListener('click',function(){setSel(1);});
+q('ez').addEventListener('input',function(e){cur().forEach(function(k){tf[k].z=e.target.value/100;});upd();});
+q('ex').addEventListener('input',function(e){cur().forEach(function(k){tf[k].x=e.target.value/100;});upd();});
+q('ey').addEventListener('input',function(e){cur().forEach(function(k){tf[k].y=e.target.value/100;});upd();});
+q('ctr').addEventListener('click',function(){cur().forEach(function(k){tf[k].x=0;tf[k].y=0;});upd();});
+q('rst').addEventListener('click',function(){cur().forEach(function(k){tf[k]={z:1,x:0,y:0};});upd();});
+q('mv').addEventListener('change',function(){cv.style.cursor=mvOn()?'move':'ew-resize';draw();});
+cv.addEventListener('pointerdown',function(e){if(!mvOn())return;drag={x:e.clientX,y:e.clientY};cv.setPointerCapture(e.pointerId);});
+cv.addEventListener('pointermove',function(e){if(!drag)return;var r=cv.getBoundingClientRect(),dx=(e.clientX-drag.x)/r.width,dy=(e.clientY-drag.y)/r.height;drag.x=e.clientX;drag.y=e.clientY;cur().forEach(function(k){tf[k].x+=dx;tf[k].y+=dy;});upd();});
+cv.addEventListener('pointerup',function(){drag=null;});
+cv.addEventListener('pointercancel',function(){drag=null;});
+function setAspect(){var wc=+q('pw').value,hc=+q('ph').value;if(!(wc>0&&hc>0))return;H=Math.round(W*Math.max(0.2,Math.min(3,hc/wc)));cv.height=A.height=B.height=H;upd();}
+q('pw').addEventListener('input',setAspect);q('ph').addEventListener('input',setAspect);
+var jpg=function(c){return new Promise(function(res,rej){c.toBlob(function(b){if(!b){rej();return;}b.arrayBuffer().then(function(ab){res(new Uint8Array(ab));},rej);},'image/jpeg',0.95);});};
+function pdfFrom(pages){var enc=new TextEncoder(),parts=[],len=0,offs=[];
+ function add(x){var u=typeof x==='string'?enc.encode(x):x;parts.push(u);len+=u.length;}
+ function o(n,body){offs[n]=len;add(n+' 0 obj\n'+body+'\nendobj\n');}
+ add('%PDF-1.4\n');o(1,'<</Type/Catalog/Pages 2 0 R>>');
+ o(2,'<</Type/Pages/Kids['+pages.map(function(p,i){return (3+3*i)+' 0 R';}).join(' ')+']/Count '+pages.length+'>>');
+ pages.forEach(function(p,i){var n=3+3*i,W2=p.W.toFixed(2),H2=p.H.toFixed(2),b=p.b.toFixed(2);
+  o(n,'<</Type/Page/Parent 2 0 R/MediaBox[0 0 '+W2+' '+H2+']/BleedBox[0 0 '+W2+' '+H2+']/TrimBox['+b+' '+b+' '+(p.W-p.b).toFixed(2)+' '+(p.H-p.b).toFixed(2)+']/Resources<</XObject<</Im0 '+(n+1)+' 0 R>>>>/Contents '+(n+2)+' 0 R>>');
+  offs[n+1]=len;add((n+1)+' 0 obj\n<</Type/XObject/Subtype/Image/Width '+p.w+'/Height '+p.h+'/ColorSpace/DeviceRGB/BitsPerComponent 8/Filter/DCTDecode/Length '+p.j.length+'>>\nstream\n');add(p.j);add('\nendstream\nendobj\n');
+  var cs='q '+W2+' 0 0 '+H2+' 0 0 cm /Im0 Do Q';o(n+2,'<</Length '+cs.length+'>>\nstream\n'+cs+'\nendstream');});
+ var N=3+3*pages.length,xo=len;add('xref\n0 '+N+'\n0000000000 65535 f \n');
+ for(var n=1;n<N;n++)add(String(offs[n]).padStart(10,'0')+' 00000 n \n');
+ add('trailer\n<</Size '+N+'/Root 1 0 R>>\nstartxref\n'+xo+'\n%%EOF');
+ return new Blob(parts,{type:'application/pdf'});}
+function pageCanvas(big,r,c,pw,ph,m,sw,sh){var p=document.createElement('canvas');p.width=pw;p.height=ph;var x=p.getContext('2d');x.fillStyle='#fff';x.fillRect(0,0,pw,ph);var sx=c*sw,sy=r*sh,w2=Math.min(sw,big.c.width-sx),h2=Math.min(sh,big.c.height-sy);x.drawImage(big.c,sx,sy,w2,h2,m,m,w2,h2);x.strokeStyle='#888';x.lineWidth=1;x.strokeRect(m,m,w2,h2);x.fillStyle='#444';x.font=Math.round(m*0.45)+'px sans-serif';x.fillText('Fila '+(r+1)+' · Columna '+(c+1),m,m*0.7);return p;}
+q('pdf').addEventListener('click',function(){
+ var wc=+q('pw').value,hc=+q('ph').value,sc=+q('ps').value,d=+q('pd').value,g=q('pg').checked,mode=q('pm').value,b=Math.max(0,(+q('pb').value||0)/10),out=q('out');
+ out.innerHTML='';
+ if(!(wc>0&&hc>0&&sc>0&&d>0)){pmsg('Revisa los valores.');return;}
+ var bb=mode==='banner'?b:0;
+ if(px(wc+2*bb,d)>16000||px(hc+2*bb,d)>16000||px(wc+2*bb,d)*px(hc+2*bb,d)>200000000){pmsg('Demasiados píxeles: baja los DPI o el tamaño.');return;}
+ pmsg('Generando PDF… puede tardar unos segundos.');
+ setTimeout(function(){try{var jobs,name;
+  if(mode==='banner'){var W2=wc+2*b,H2=hc+2*b,big=buildPrint(W2,H2,sc,d,g);name='lenticular_'+wc+'x'+hc+'cm_imprenta.pdf';
+   jobs=[jpg(big.c).then(function(j){return {j:j,w:big.c.width,h:big.c.height,W:W2/2.54*72,H:H2/2.54*72,b:b/2.54*72};})];}
+  else{var bg=buildPrint(wc,hc,sc,d,g),pw=px(29.7,d),ph=px(21,d),m=px(1,d),per=Math.max(2,Math.floor(27.7/sc/2)*2),sw=per*bg.sp,sh=px(19,d),cols=Math.ceil(bg.c.width/sw),rows=Math.ceil(bg.c.height/sh);jobs=[];name='lenticular_hojas_A4.pdf';
+   for(var r=0;r<rows;r++)for(var c=0;c<cols;c++)jobs.push(jpg(pageCanvas(bg,r,c,pw,ph,m,sw,sh)).then(function(j){return {j:j,w:pw,h:ph,W:29.7/2.54*72,H:21/2.54*72,b:0};}));}
+  Promise.all(jobs).then(function(pg){var blob=pdfFrom(pg);pmsg('PDF listo ('+(blob.size/1048576).toFixed(1)+' MB). Confirma el guardado.');saveBlob(blob,name);setTimeout(function(){},0);}).catch(function(){pmsg('No se pudo generar el PDF. Baja los DPI o el tamaño.');});
+ }catch(e){pmsg('No se pudo generar el PDF. Baja los DPI o el tamaño.');}},30);
+});
+setAspect();
 })();
 </script>
 </body>
